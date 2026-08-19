@@ -343,6 +343,39 @@ header div {
     .error-box { background:#7f1d1d; color:#fca5a5; padding:12px 16px; border-radius:8px; margin-top:12px; font-size:0.85rem; display:none; }
     @media(max-width:900px){ .feature-grid { grid-template-columns: repeat(2,1fr); } }
     @media(max-width:600px){ .feature-grid { grid-template-columns: 1fr; } .grid3,.grid2 { grid-template-columns:1fr; } }
+
+
+/* ===== COLLAPSIBLE ===== */
+.collapsible-header {
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  padding: 12px 0;
+  color: #2a2a2a;
+}
+
+.collapsible-header span {
+  font-size: 0.9rem;
+  color: #888;
+}
+
+.collapsible-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+
+.collapsible.open .collapsible-content {
+  max-height: 1000px;
+}
+
+.collapsible-header:hover {
+  color: #c8a96a;
+}
+
+
   </style>
 </head>
 <body>
@@ -374,7 +407,7 @@ header div {
       <div class="demo-btns">
   <button class="demo-btn attack" onclick="fillSample('attack')">🔴 Generate Attack Traffic</button>
   <button class="demo-btn benign" onclick="fillSample('benign')">🟢 Generate Benign Traffic</button>
-  <button class="demo-btn reset"  onclick="location.reload()">🔄 New Random Sample</button>
+  <button class="demo-btn reset"  onclick="randomSample()">🔄 New Random Sample</button>
     </div>
       <div class="feature-grid" id="feature-inputs"></div>
       <button class="btn-predict" id="predict-btn" onclick="predict()">🔍 Analyse Traffic</button>
@@ -394,22 +427,41 @@ header div {
           </div>
         </div>
         <hr>
-        <h2>🗳️ Individual Model Votes</h2>
-        <div class="grid3" id="vote-cards"></div>
+        <div class="collapsible open">
+  <div class="collapsible-header" onclick="toggleCollapse(this)">
+    🗳️ Individual Model Votes
+    <span>▼</span>
+  </div>
+
+  <div class="collapsible-content">
+    <div class="grid3" id="vote-cards"></div>
+  </div>
+</div>
       </div>
 
       <div class="card">
-        <h2>🔬 Live SHAP Explanations — All 3 Models</h2>
-        <div class="info-box">
-          <strong>How to read:</strong> Each panel shows how that model reached its decision.
-          🔴 Red = pushes toward ATTACK &nbsp;|&nbsp; 🟢 Green = pushes toward BENIGN.
-          Longer bar = stronger influence. Top 8 features shown per model.
-        </div>
-        <div class="legend">
-          <span><span class="legend-dot" style="background:#dc2626"></span>→ ATTACK</span>
-          <span><span class="legend-dot" style="background:#16a34a"></span>→ BENIGN</span>
-        </div>
-        <div class="grid3" id="shap-panels"></div>
+        <div class="collapsible">
+  <div class="collapsible-header" onclick="toggleCollapse(this)">
+    🔬 Live SHAP Explanations — All 3 Models
+    <span>▼</span>
+  </div>
+
+  <div class="collapsible-content">
+
+    <div class="info-box">
+      <strong>How to read:</strong> Each panel shows how that model reached its decision.
+      🔴 Red = pushes toward ATTACK &nbsp;|&nbsp; 🟢 Green = pushes toward BENIGN.
+    </div>
+
+    <div class="legend">
+      <span><span class="legend-dot" style="background:#dc2626"></span>→ ATTACK</span>
+      <span><span class="legend-dot" style="background:#16a34a"></span>→ BENIGN</span>
+    </div>
+
+    <div class="grid3" id="shap-panels"></div>
+
+  </div>
+</div>
       </div>
     </div>
   </div>
@@ -478,18 +530,49 @@ function switchTab(name, btn) {
   btn.classList.add('active');
 }
 
-function fillSample(type) {
-  const sample = type === 'attack' ? attackSample : type === 'benign' ? benignSample : null;
+async function fillSample(type) {
+
+  const endpoint =
+    type === 'attack'
+      ? '/random_attack'
+      : '/random_benign';
+
+  const res = await fetch(endpoint);
+  const sample = await res.json();
+
   features.forEach(f => {
     const safe  = f.replace(/[^a-zA-Z0-9]/g,'_');
     const input = document.getElementById('f_'+safe);
+
     if (!input) return;
-    if (sample && sample[f] !== undefined) {
+
+    if (sample[f] !== undefined) {
       input.value = sample[f];
       input.classList.add('highlighted');
-    } else {
-      input.value = (defaults[f] !== undefined ? defaults[f] : 0).toFixed(4);
-      input.classList.remove('highlighted');
+    }
+  });
+}
+
+
+async function randomSample() {
+
+  const endpoint =
+    Math.random() < 0.5
+      ? '/random_attack'
+      : '/random_benign';
+
+  const res = await fetch(endpoint);
+  const sample = await res.json();
+
+  features.forEach(f => {
+    const safe  = f.replace(/[^a-zA-Z0-9]/g,'_');
+    const input = document.getElementById('f_'+safe);
+
+    if (!input) return;
+
+    if (sample[f] !== undefined) {
+      input.value = sample[f];
+      input.classList.add('highlighted');
     }
   });
 }
@@ -610,6 +693,16 @@ const compImg = {{ comparison_image | tojson }};
 document.getElementById('comparison-images').innerHTML = compImg
   ? `<img src="data:image/png;base64,${compImg}" style="width:100%;border-radius:8px">`
   : `<div style="color:#475569;padding:40px;text-align:center">Run 4_explain_shap.py first</div>`;
+
+function toggleCollapse(el) {
+  const parent = el.parentElement;
+  parent.classList.toggle('open');
+
+  const arrow = el.querySelector('span');
+  arrow.textContent = parent.classList.contains('open') ? '▼' : '▶';
+}
+
+
 </script>
 </body>
 </html>
@@ -648,6 +741,17 @@ def index():
         shap_global_titles=shap_global_titles,
         comparison_image=img_to_base64(f"{PLOT_DIR}shap_comparison_all_models.png"),
     )
+
+
+@app.route("/random_attack")
+def random_attack():
+    return jsonify(make_random_attack())
+
+@app.route("/random_benign")
+def random_benign():
+    return jsonify(make_random_benign())
+
+
 
 @app.route("/predict", methods=["POST"])
 def predict():
@@ -703,3 +807,6 @@ def predict():
 if __name__ == "__main__":
     print("[✓] Dashboard at http://127.0.0.1:5000")
     app.run(debug=True)
+
+
+
